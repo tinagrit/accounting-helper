@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Accounting helper",
+  "version": "1.0",
+  "description": "Sum accounting inputs and fill empty inputs with zero.",
+  "permissions": ["contextMenus"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["decimal.js", "content.js"],
+      "css": ["content.css"],
+      "all_frames": true,
+      "match_origin_as_fallback": true,
+      "run_at": "document_start"
+    }
+  ]
+}
