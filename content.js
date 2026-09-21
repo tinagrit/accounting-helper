@@ -13,6 +13,7 @@
   let baseValue = null;
   let hoveredInput = null;
   let hoveredScope = null;
+  let scopeOverlay = null;
   let instructionHost = null;
   let isApplyingExtensionValue = false;
   const selectedInputs = new Set();
@@ -52,12 +53,44 @@
 
   function setHoveredScope(scope) {
     if (hoveredScope === scope) {
+      positionScopeOverlay();
       return;
     }
 
     hoveredScope?.classList.remove(CLASS_SCOPE);
     hoveredScope = scope;
     hoveredScope?.classList.add(CLASS_SCOPE);
+
+    if (!hoveredScope) {
+      scopeOverlay?.remove();
+      scopeOverlay = null;
+      return;
+    }
+
+    if (!scopeOverlay) {
+      scopeOverlay = document.createElement("accounting-helper-scope-overlay");
+      (document.documentElement || document.body).append(scopeOverlay);
+    }
+
+    positionScopeOverlay();
+  }
+
+  function positionScopeOverlay() {
+    if (!hoveredScope?.isConnected || !scopeOverlay) {
+      return;
+    }
+
+    const bounds = hoveredScope.getBoundingClientRect();
+    const overlayStyles = {
+      top: `${bounds.top}px`,
+      left: `${bounds.left}px`,
+      width: `${bounds.width}px`,
+      height: `${bounds.height}px`,
+    };
+
+    for (const [property, value] of Object.entries(overlayStyles)) {
+      scopeOverlay.style.setProperty(property, value, "important");
+    }
   }
 
   function showInstruction(message) {
@@ -254,6 +287,12 @@
     setHoveredScope(null);
   }
 
+  function handleViewportChange() {
+    if (mode === "fill-zero") {
+      positionScopeOverlay();
+    }
+  }
+
   function interceptEvent(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -366,4 +405,6 @@
   document.addEventListener("contextmenu", handleContextMenu, true);
   document.addEventListener("input", handleInput, true);
   document.addEventListener("keydown", handleKeyDown, true);
+  window.addEventListener("scroll", handleViewportChange, true);
+  window.addEventListener("resize", handleViewportChange, true);
 })();
