@@ -37,6 +37,10 @@
     return isEligibleInput(input) ? input : null;
   }
 
+  function inputFromTarget(target) {
+    return target instanceof Element ? target.closest("input") : null;
+  }
+
   function scopeFromTarget(target) {
     return target instanceof Element ? target.closest("div, section") : null;
   }
@@ -264,6 +268,183 @@
     showInstruction("Left click at an input to add to the sum. Right click to finish.");
   }
 
+  function findTableContributors(input) {
+    const destinationCell = input.closest("td, th");
+    const table = destinationCell?.closest("table");
+    const destinationRow = destinationCell?.closest("tr");
+
+    if (!table || !destinationRow) {
+      return null;
+    }
+
+    const rows = Array.from(table.rows);
+    const destinationRowIndex = rows.indexOf(destinationRow);
+
+    if (destinationRowIndex <= 0) {
+      return null;
+    }
+
+    const destinationColumn = destinationCell.cellIndex;
+    const contributors = [];
+
+    for (const row of rows.slice(0, destinationRowIndex)) {
+      const matchingCell = Array.from(row.cells).find(
+        (cell) =>
+          cell.cellIndex <= destinationColumn &&
+          cell.cellIndex + cell.colSpan > destinationColumn,
+      );
+
+      if (!matchingCell) {
+        continue;
+      }
+
+      contributors.push(
+        ...Array.from(matchingCell.querySelectorAll("input")).filter(isEligibleInput),
+      );
+    }
+
+    return contributors.length > 0 ? contributors : null;
+  }
+
+  function geometryForInput(input) {
+    const bounds = input.getBoundingClientRect();
+    const style = getComputedStyle(input);
+
+    if (
+      bounds.width === 0 ||
+      bounds.height === 0 ||
+      style.display === "none" ||
+      style.visibility === "hidden"
+    ) {
+      return null;
+    }
+
+    return {
+      input,
+      bounds,
+      centerX: bounds.left + bounds.width / 2,
+      centerY: bounds.top + bounds.height / 2,
+    };
+  }
+
+  function occupiesSameColumn(candidate, destinationGeometry) {
+    const overlap =
+      Math.min(candidate.bounds.right, destinationGeometry.bounds.right) -
+      Math.max(candidate.bounds.left, destinationGeometry.bounds.left);
+    const narrowerWidth = Math.min(
+      candidate.bounds.width,
+      destinationGeometry.bounds.width,
+    );
+    const centerTolerance = Math.max(12, narrowerWidth * 0.35);
+
+    return (
+      overlap >= narrowerWidth * 0.5 ||
+      Math.abs(candidate.centerX - destinationGeometry.centerX) <= centerTolerance
+    );
+  }
+
+  function resemblesMultiColumnGrid(geometries) {
+    for (let firstIndex = 0; firstIndex < geometries.length; firstIndex += 1) {
+      const first = geometries[firstIndex];
+
+      for (let secondIndex = firstIndex + 1; secondIndex < geometries.length; secondIndex += 1) {
+        const second = geometries[secondIndex];
+        const rowTolerance = Math.max(
+          8,
+          Math.min(first.bounds.height, second.bounds.height) * 0.6,
+        );
+
+        if (
+          Math.abs(first.centerY - second.centerY) <= rowTolerance &&
+          !occupiesSameColumn(first, second)
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  function findVisualGridContributors(input) {
+    const destinationGeometry = geometryForInput(input);
+
+    if (!destinationGeometry) {
+      return null;
+    }
+
+    let container = input.parentElement;
+    let inspectedContainers = 0;
+
+    while (
+      container &&
+      container !== document.body &&
+      container !== document.documentElement &&
+      inspectedContainers < 8
+    ) {
+      if (container.matches("div, section")) {
+        const geometries = Array.from(container.querySelectorAll("input"))
+          .filter(isEligibleInput)
+          .map(geometryForInput)
+          .filter(Boolean);
+        const contributors = geometries.filter(
+          (candidate) =>
+            candidate.input !== input &&
+            candidate.bounds.bottom <= destinationGeometry.bounds.top + 4 &&
+            occupiesSameColumn(candidate, destinationGeometry),
+        );
+
+        if (contributors.length > 0) {
+          const display = getComputedStyle(container).display;
+          const hasExplicitGridLayout =
+            display === "grid" ||
+            display === "inline-grid" ||
+            display.startsWith("table");
+
+          if (hasExplicitGridLayout || resemblesMultiColumnGrid(geometries)) {
+            return contributors
+              .sort(
+                (first, second) =>
+                  first.bounds.top - second.bounds.top ||
+                  first.bounds.left - second.bounds.left,
+              )
+              .map(({ input: contributor }) => contributor);
+          }
+        }
+      }
+
+      container = container.parentElement;
+      inspectedContainers += 1;
+    }
+
+    return null;
+  }
+
+  function findAutoSumContributors(input) {
+    return findTableContributors(input) || findVisualGridContributors(input);
+  }
+
+  function startAutoSum(input) {
+    const contributors = findAutoSumContributors(input);
+
+    if (!contributors) {
+      window.alert(
+        "Accounting Helper could not detect a table/grid around this input. Starting manual sum inputs instead.",
+      );
+      startSum(input);
+      return;
+    }
+
+    startSum(input);
+
+    for (const contributor of contributors) {
+      selectedInputs.add(contributor);
+      contributor.classList.add(CLASS_SELECTED);
+    }
+
+    recalculateSum();
+  }
+
   function startFillZero() {
     clearMode();
     mode = "fill-zero";
@@ -379,21 +560,33 @@
       return;
     }
 
-    lastContextInput = eligibleInputFromTarget(event.target);
+    lastContextInput = inputFromTarget(event.target);
   }
 
   chrome.runtime.onMessage.addListener((message) => {
-    if (!lastContextInput?.isConnected || !isEligibleInput(lastContextInput)) {
-      lastContextInput = null;
-      return;
-    }
-
     const input = lastContextInput;
     lastContextInput = null;
 
-    if (message?.command === "start-sum") {
+    if (message?.command === "start-sum" || message?.command === "start-auto-sum") {
+      if (!input?.isConnected || !isEligibleInput(input)) {
+        const commandName = message.command === "start-auto-sum" ? "Auto sum" : "Sum inputs";
+        window.alert(
+          `${commandName} only works with writable text or number inputs.`,
+        );
+        return;
+      }
+
+      if (message.command === "start-auto-sum") {
+        startAutoSum(input);
+        return;
+      }
+
       startSum(input);
-    } else if (message?.command === "start-fill-zero") {
+    } else if (
+      message?.command === "start-fill-zero" &&
+      input?.isConnected &&
+      isEligibleInput(input)
+    ) {
       startFillZero();
     }
   });
