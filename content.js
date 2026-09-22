@@ -1,6 +1,12 @@
 (function initializeAccountingHelper() {
   "use strict";
 
+  if (globalThis.__accountingHelperContentLoaded) {
+    return;
+  }
+
+  globalThis.__accountingHelperContentLoaded = true;
+
   const decimal = globalThis.AccountingHelperDecimal;
   const ELIGIBLE_TYPES = new Set(["text", "search", "tel", "url", "email", "number"]);
   const CLASS_HOVER = "accounting-helper-input-hover";
@@ -583,7 +589,7 @@
   }
 
   chrome.runtime.onMessage.addListener((message) => {
-    const input = lastContextInput;
+    const input = lastContextInput || inputFromTarget(document.activeElement);
     lastContextInput = null;
 
     if (message?.command === "start-sum" || message?.command === "start-auto-sum") {

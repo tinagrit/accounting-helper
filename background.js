@@ -28,19 +28,46 @@ function installContextMenus() {
 
 chrome.runtime.onInstalled.addListener(installContextMenus);
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+async function sendCommandToClickedFrame(info, tab) {
   const command = MENU_COMMANDS[info.menuItemId];
 
   if (!command || typeof tab?.id !== "number") {
     return;
   }
 
-  chrome.tabs
-    .sendMessage(
-      tab.id,
-      { command },
-      { frameId: typeof info.frameId === "number" ? info.frameId : 0 },
-    )
-    .catch(() => {
+  const frameId = typeof info.frameId === "number" ? info.frameId : 0;
+  const message = { command };
+
+  try {
+    await chrome.tabs.sendMessage(tab.id, message, { frameId });
+    return;
+  } catch {
+  }
+
+  const target = { tabId: tab.id, frameIds: [frameId] };
+
+  try {
+    await chrome.scripting.insertCSS({
+      target,
+      files: ["content.css"],
     });
+    await chrome.scripting.executeScript({
+      target,
+      files: ["decimal.js"],
+    });
+    await chrome.scripting.executeScript({
+      target,
+      files: ["content.js"],
+    });
+    await chrome.tabs.sendMessage(
+      tab.id,
+      message,
+      { frameId },
+    );
+  } catch {
+  }
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  void sendCommandToClickedFrame(info, tab);
 });
