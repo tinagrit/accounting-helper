@@ -10,9 +10,9 @@ ___
 
 ___
 ### Usage
-- Right click an input and choose **Accounting helper > Sum inputs**. Left click other inputs to contribute them in the sum, then right click to finish.
+- Right click an input and choose **Accounting helper > Sum inputs**. Left click other inputs to contribute them in the sum, then right click, Enter, or Esc to finish.
 - Choose **Auto sum** to detect a table/grid and preselect inputs above the destination in the same column.
-- Right-click an input and choose **Accounting helper > Fill 0s**. Hover to choose a scope container `div`, then left click it to fill its empty eligible inputs. Right click to cancel.
+- Right-click an input and choose **Accounting helper > Fill 0s**. Hover to choose a scope container, then left click it to fill its empty inputs. Right click or Esc to cancel.
 
 Each sum update and fill can be undone with Ctrl+Z on Windows/Linux or Cmd+Z on Mac.
 

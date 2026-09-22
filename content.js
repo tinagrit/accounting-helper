@@ -183,7 +183,37 @@
     }
   }
 
+  function finishSumMode() {
+    const inputToFocus = destination;
+    clearMode();
+
+    if (inputToFocus?.isConnected) {
+      inputToFocus.focus();
+
+      try {
+        inputToFocus.select();
+      } catch {
+      }
+    }
+  }
+
   function handleKeyDown(event) {
+    if (
+      mode === "sum" &&
+      !event.isComposing &&
+      (event.key === "Enter" || event.key === "Escape")
+    ) {
+      interceptEvent(event);
+      finishSumMode();
+      return;
+    }
+
+    if (mode === "fill-zero" && !event.isComposing && event.key === "Escape") {
+      interceptEvent(event);
+      clearMode();
+      return;
+    }
+
     const isUndo =
       event.key.toLowerCase() === "z" &&
       (event.ctrlKey || event.metaKey) &&
@@ -538,19 +568,8 @@
 
   function handleContextMenu(event) {
     if (mode === "sum") {
-      const inputToFocus = destination;
       interceptEvent(event);
-      clearMode();
-
-      if (inputToFocus?.isConnected) {
-        inputToFocus.focus();
-
-        try {
-          inputToFocus.select();
-        } catch {
-        }
-      }
-
+      finishSumMode();
       return;
     }
 
