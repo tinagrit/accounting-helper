@@ -2,7 +2,11 @@
 Chrome extension for summing accounting inputs and filling zero on empty inputs.
 
 ___
-### Installation
+### Installation (live)
+Add the extension to any Chromium browser from the [Chrome Web Store](https://chromewebstore.google.com/detail/accounting-helper/oalkeeikgindpgfkolggmgppchiemlfa).
+
+___
+### Installation (development)
 1. Open `chrome://extensions`
 2. Enable **Developer mode**
 3. Choose **Load unpacked** and select this project directory
